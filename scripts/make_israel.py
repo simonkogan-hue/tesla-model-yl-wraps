@@ -38,13 +38,73 @@ magen_david(512, 268, 58, 9)
 # --- Front bumper (top wide panel): thin blue accent stripe --------------
 rect(300, 72, 728, 84)
 
-# --- Doors, both sides: stripes run along the car, star between them -----
-for x_a, x_b, cx in ((38, 58, 108), (966, 986, 916)):
-    # x mirrored for right side
-    for xa, xb in ((x_a, x_b), (x_a + 120 if x_a < 500 else x_a - 120, x_b + 120 if x_a < 500 else x_b - 120)):
-        rect(xa, 270, xb, 745)
-    for cy in (400, 625):     # front door, rear door
-        magen_david(cx, cy, 36, 6, rot=math.pi / 2)
+# --- Sides: two flag stripes running the full length of the car ---------
+# In the template, each side panel's inner edge (toward the sheet centre) is the
+# beltline / hood line and its outer edge is the rocker. Following those edges row
+# by row keeps the stripes parallel to the body lines and lets the upper stripe
+# carry on through the front fender and rear quarter panel.
+from scipy import ndimage
+lab, _ = ndimage.label(alpha > 128)
+lab3 = np.repeat(np.repeat(lab, S, 0), S, 1)
+stripe = np.zeros((H, W), bool)
+TOP_OFF, BOT_OFF, THICK = 12, 14, 20     # px (1024 scale)
+
+def comp(seed):
+    return lab[seed[1], seed[0]]
+
+SIDES = {
+    "left":  dict(fender=(209, 176), doors=[(166, 393), (162, 625)], quarter=(203, 852)),
+    "right": dict(fender=(873, 178), doors=[(872, 394), (945, 626)], quarter=(785, 853)),
+}
+star_spots = []
+for side, parts in SIDES.items():
+    left = side == "left"
+    ids_top = [comp(parts["fender"]), *map(comp, parts["doors"]), comp(parts["quarter"])]
+    ids_bot = list(map(comp, parts["doors"]))
+    def edge_fit(cid, use_inner, deg=2, upto=0.88):
+        """Smooth (quadratic) fit of a panel edge x(y), ignoring the curved ends."""
+        ys = np.where((lab == cid).any(1))[0]
+        y0, y1 = ys.min(), ys.max()
+        core = ys[(ys > y0 + 0.12 * (y1 - y0)) & (ys < y0 + upto * (y1 - y0))]
+        pick_max = (use_inner and left) or (not use_inner and not left)
+        ex = [np.where(lab[y] == cid)[0].max() if pick_max else np.where(lab[y] == cid)[0].min() for y in core]
+        return np.poly1d(np.polyfit(core, ex, deg))
+
+    def paint(cid, fit, off, sign):
+        """sign=-1 paints toward smaller x from the edge, +1 toward larger x."""
+        m = lab3 == cid
+        rows = np.where(m.any(1))[0]
+        xx = np.arange(W)
+        for r in rows:
+            e = fit(r / S) * S
+            if sign < 0:
+                a, b = e - p(off + THICK), e - p(off)
+            else:
+                a, b = e + p(off), e + p(off + THICK)
+            band = (xx >= a) & (xx < b) & m[r]
+            stripe[r, band] = True
+
+    door_ids = set(ids_bot)
+    for cid in ids_top:
+        fit = edge_fit(cid, True, deg=1) if cid in door_ids else edge_fit(cid, True)
+        paint(cid, fit, TOP_OFF, -1 if left else 1)
+    for cid in ids_bot:
+        ys, xs_all = np.where(lab == cid)
+        paint(cid, edge_fit(cid, False, deg=1, upto=0.55), BOT_OFF, 1 if left else -1)
+        # star centred between the two stripes, at the door's middle row
+        cy = int(np.median(ys))
+        row = np.where(lab[cy] == cid)[0]
+        lo, hi = row.min() + BOT_OFF + THICK, row.max() - TOP_OFF - THICK
+        if not left:
+            lo, hi = row.min() + TOP_OFF + THICK, row.max() - BOT_OFF - THICK
+        star_spots.append(((lo + hi) / 2, cy, (hi - lo) / 2 - 12))
+
+arr3 = np.array(img)
+arr3[stripe] = BLUE
+img = Image.fromarray(arr3)
+d = ImageDraw.Draw(img)
+for cx, cy, r in star_spots:
+    magen_david(cx, cy, min(r, 40), 6, rot=math.pi / 2)
 
 # --- Rear spoiler bar: blue; liftgate: star ------------------------------
 magen_david(512, 955, 34, 6)
@@ -55,8 +115,6 @@ rect(648, 960, 794, 972)
 
 img = img.resize((1024, 1024), Image.LANCZOS)
 # Solid-blue panels (pillars/roof rails, mirrors, rear spoiler), picked by connected component
-from scipy import ndimage
-lab, _ = ndimage.label(alpha > 128)
 arr = np.array(img)
 for seed in [(342, 413), (679, 415), (329, 772), (696, 773), (262, 281), (756, 283), (548, 859)]:
     m = ndimage.binary_dilation(lab == lab[seed[1], seed[0]], iterations=2)

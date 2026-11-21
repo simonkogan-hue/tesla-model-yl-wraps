@@ -7,7 +7,7 @@ Custom Paint Shop wraps for the **Tesla Model Y L**, built on Tesla's official t
 | Israel Blue & White | Aurora Sweep |
 |---|---|
 | <img src="wraps/Israel_Blue_White.png" width="300"/> | <img src="wraps/Aurora_Sweep.png" width="300"/> |
-| Israel flag colors with Magen David stars on the hood, doors and liftgate; blue pillars, mirrors and spoiler. | Midnight navy with a teal-to-violet glow along the sides and a starfield on the hood. |
+| Israel flag colors: two blue stripes running the full length of each side (fender, doors, rear quarter), Magen David stars on the hood, doors and liftgate; blue pillars, mirrors and spoiler. | Midnight navy with a teal-to-violet glow along the sides and a starfield on the hood. |
 
 Both files are 1024×1024 PNG and under 1 MB, as Tesla requires.
 
